@@ -5,26 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
   <title>Superr Taco - Admin Panel</title>
+
+  <!-- Firebase SDK'ları -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background-color: #0b1a12; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-    
-    /* Şifre Ekranı Tasarımı */
-    #login-screen {
-      background: rgba(15, 38, 26, 0.9); border: 1px solid rgba(46, 204, 113, 0.3);
-      padding: 40px; border-radius: 16px; text-align: center; width: 100%; max-width: 400px;
-    }
+    #login-screen { background: rgba(15, 38, 26, 0.9); border: 1px solid rgba(46, 204, 113, 0.3); padding: 40px; border-radius: 16px; text-align: center; width: 100%; max-width: 400px; }
     #login-screen h2 { color: #2ecc71; margin-bottom: 20px; }
-    #login-screen input {
-      width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 8px;
-      border: 1px solid #2ecc71; background: #0b1a12; color: #fff; font-size: 16px; outline: none;
-    }
-    #login-screen button {
-      width: 100%; padding: 15px; background: #2ecc71; color: #0b1a12; border: none;
-      border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer;
-    }
-
-    /* Admin Panel Tasarımı (Başlangıçta Gizli) */
+    #login-screen input { width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #2ecc71; background: #0b1a12; color: #fff; font-size: 16px; outline: none; }
+    #login-screen button { width: 100%; padding: 15px; background: #2ecc71; color: #0b1a12; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
     #admin-dashboard { display: none; width: 100%; max-width: 900px; align-self: flex-start; margin: 0 auto; margin-top: 20px;}
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid rgba(46, 204, 113, 0.3); padding-bottom: 20px; }
     .header h1 { color: #2ecc71; font-size: 28px; }
@@ -43,7 +35,6 @@
 </head>
 <body>
 
-  <!-- ŞİFRE GİRİŞ EKRANI -->
   <div id="login-screen">
     <h2>Yönetim Paneli Girişi</h2>
     <input type="password" id="adminPassword" placeholder="Şifrenizi girin..." onkeypress="handleKeyPress(event)">
@@ -51,7 +42,6 @@
     <p id="error-msg" style="color: #ff6b6b; margin-top: 15px; display: none; font-size: 14px;">Hatalı şifre, tekrar deneyin.</p>
   </div>
 
-  <!-- GERÇEK YÖNETİM PANELİ (ŞİFRE DOĞRUYSA AÇILIR) -->
   <div id="admin-dashboard">
     <div class="header">
       <h1>🌮 Superr Taco | Yönetim Paneli</h1>
@@ -82,12 +72,22 @@
   </div>
 
   <script>
-    // --- GÜVENLİK VE GİRİŞ İŞLEMLERİ ---
+    // Sizin Firebase Projenizin Gerçek Bağlantı Bilgileri
+    const firebaseConfig = {
+      apiKey: "AIzaSyDh1hU_FOHvEg0SiLhCfnwF0GMRuiOXyog",
+      authDomain: "superrtaco.firebaseapp.com",
+      projectId: "superrtaco",
+      storageBucket: "superrtaco.firebasestorage.app",
+      messagingSenderId: "103688594452",
+      appId: "1:103688594452:web:ebd18212145cc067ccf301",
+      measurementId: "G-VLB2VWGLHT"
+    };
     
-    // BURADAN ŞİFRENİZİ DEĞİŞTİREBİLİRSİNİZ
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     const ADMIN_PASSWORD = "super2026"; 
 
-    // Sayfa açıldığında daha önce giriş yapılmış mı diye kontrol et
     window.onload = function() {
       if(sessionStorage.getItem("isLoggedIn") === "true") {
         showDashboard();
@@ -111,7 +111,6 @@
     function showDashboard() {
       document.getElementById("login-screen").style.display = "none";
       document.getElementById("admin-dashboard").style.display = "block";
-      // Sayfa ortalamasını iptal edip tepeye hizalamak için body stilini değiştir
       document.body.style.justifyContent = "flex-start"; 
       loadReviews();
     }
@@ -121,30 +120,34 @@
       window.location.reload();
     }
 
-    // --- VERİ ÇEKME İŞLEMLERİ (Şu anki LocalStorage Testi) ---
+    // Yorumları Doğrudan Firestore Veritabanından Çeker
     function loadReviews() {
-      const reviews = JSON.parse(localStorage.getItem('superrTacoReviews')) || [];
       const tbody = document.getElementById('reviews-body');
       
-      document.getElementById('total-reviews').innerText = reviews.length;
+      db.collection("yorumlar").orderBy("tarih", "desc").get().then((querySnapshot) => {
+        document.getElementById('total-reviews').innerText = querySnapshot.size;
 
-      if(reviews.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="empty-state">Henüz geri bildirim bulunmuyor.</td></tr>`;
-        return;
-      }
+        if(querySnapshot.empty) {
+          tbody.innerHTML = `<tr><td colspan="3" class="empty-state">Henüz geri bildirim bulunmuyor.</td></tr>`;
+          return;
+        }
 
-      tbody.innerHTML = '';
-      reviews.reverse().forEach(review => {
-        let starString = '⭐'.repeat(review.puan);
-        let dateString = new Date(review.tarih).toLocaleString('tr-TR');
-        
-        tbody.innerHTML += `
-          <tr>
-            <td>${dateString}</td>
-            <td class="stars">${starString}</td>
-            <td>${review.yorum || '<em style="color:#888;">Yorum bırakılmadı</em>'}</td>
-          </tr>
-        `;
+        tbody.innerHTML = '';
+        querySnapshot.forEach((doc) => {
+          const review = doc.data();
+          let starString = '⭐'.repeat(review.puan);
+          let dateString = new Date(review.tarih).toLocaleString('tr-TR');
+          
+          tbody.innerHTML += `
+            <tr>
+              <td>${dateString}</td>
+              <td class="stars">${starString}</td>
+              <td>${review.yorum || '<em style="color:#888;">Yorum bırakılmadı</em>'}</td>
+            </tr>
+          `;
+        });
+      }).catch((error) => {
+        console.error("Veriler çekilirken hata oluştu:", error);
       });
     }
   </script>
