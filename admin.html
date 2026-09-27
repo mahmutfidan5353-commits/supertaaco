@@ -8,6 +8,7 @@
 
   <!-- Firebase SDK'ları -->
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 
   <style>
@@ -16,7 +17,8 @@
     #login-screen { background: rgba(15, 38, 26, 0.9); border: 1px solid rgba(46, 204, 113, 0.3); padding: 40px; border-radius: 16px; text-align: center; width: 100%; max-width: 400px; }
     #login-screen h2 { color: #2ecc71; margin-bottom: 20px; }
     #login-screen input { width: 100%; padding: 15px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #2ecc71; background: #0b1a12; color: #fff; font-size: 16px; outline: none; }
-    #login-screen button { width: 100%; padding: 15px; background: #2ecc71; color: #0b1a12; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; }
+    #login-screen button { width: 100%; padding: 15px; background: #2ecc71; color: #0b1a12; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+    #login-screen button:hover { background: #27ae60; }
     #admin-dashboard { display: none; width: 100%; max-width: 900px; align-self: flex-start; margin: 0 auto; margin-top: 20px;}
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid rgba(46, 204, 113, 0.3); padding-bottom: 20px; }
     .header h1 { color: #2ecc71; font-size: 28px; }
@@ -37,9 +39,11 @@
 
   <div id="login-screen">
     <h2>Yönetim Paneli Girişi</h2>
+    <!-- E-posta ve Şifre kodun içinde değil, site açılınca ekrandan klavyeyle girilecek -->
+    <input type="email" id="adminEmail" placeholder="E-posta adresiniz..." onkeypress="handleKeyPress(event)">
     <input type="password" id="adminPassword" placeholder="Şifrenizi girin..." onkeypress="handleKeyPress(event)">
     <button onclick="checkPassword()">Giriş Yap</button>
-    <p id="error-msg" style="color: #ff6b6b; margin-top: 15px; display: none; font-size: 14px;">Hatalı şifre, tekrar deneyin.</p>
+    <p id="error-msg" style="color: #ff6b6b; margin-top: 15px; display: none; font-size: 14px;">E-posta veya şifre hatalı.</p>
   </div>
 
   <div id="admin-dashboard">
@@ -65,14 +69,13 @@
           </tr>
         </thead>
         <tbody id="reviews-body">
-          <!-- Yorumlar buraya JS ile eklenecek -->
         </tbody>
       </table>
     </div>
   </div>
 
   <script>
-    // Sizin Firebase Projenizin Gerçek Bağlantı Bilgileri
+    // Sizin Firebase Projenizin Bağlantı Anahtarları (Bunda hiçbir güvenlik riski yoktur)
     const firebaseConfig = {
       apiKey: "AIzaSyDh1hU_FOHvEg0SiLhCfnwF0GMRuiOXyog",
       authDomain: "superrtaco.firebaseapp.com",
@@ -85,27 +88,39 @@
     
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
 
-    const ADMIN_PASSWORD = "super2026"; 
-
-    window.onload = function() {
-      if(sessionStorage.getItem("isLoggedIn") === "true") {
+    // Oturum kontrolü (Giriş yapılmışsa paneli aç, yapılmamışsa giriş ekranını göster)
+    auth.onAuthStateChanged((user) => {
+      if (user) {
         showDashboard();
+      } else {
+        document.getElementById("login-screen").style.display = "block";
+        document.getElementById("admin-dashboard").style.display = "none";
       }
-    };
+    });
 
     function handleKeyPress(e) {
       if (e.key === "Enter") checkPassword();
     }
 
+    // Kullanıcının ekrana yazdığı e-posta ve şifreyi güvenli şekilde Firebase'e soruyoruz
     function checkPassword() {
-      const input = document.getElementById("adminPassword").value;
-      if (input === ADMIN_PASSWORD) {
-        sessionStorage.setItem("isLoggedIn", "true");
-        showDashboard();
-      } else {
-        document.getElementById("error-msg").style.display = "block";
-      }
+      const email = document.getElementById("adminEmail").value;
+      const pass = document.getElementById("adminPassword").value;
+      const btn = document.querySelector("#login-screen button");
+      
+      btn.innerText = "Giriş Yapılıyor...";
+      
+      auth.signInWithEmailAndPassword(email, pass)
+        .then(() => {
+          btn.innerText = "Giriş Yap";
+          document.getElementById("error-msg").style.display = "none";
+        })
+        .catch((error) => {
+          btn.innerText = "Giriş Yap";
+          document.getElementById("error-msg").style.display = "block";
+        });
     }
 
     function showDashboard() {
@@ -116,11 +131,11 @@
     }
 
     function logout() {
-      sessionStorage.removeItem("isLoggedIn");
-      window.location.reload();
+      auth.signOut().then(() => {
+        window.location.reload();
+      });
     }
 
-    // Yorumları Doğrudan Firestore Veritabanından Çeker
     function loadReviews() {
       const tbody = document.getElementById('reviews-body');
       
